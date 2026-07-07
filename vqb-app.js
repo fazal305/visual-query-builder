@@ -1,51 +1,93 @@
 let activeOutputTab = "sql";
 
-// Starts the full application.
+const dom = {};
+
 function init() {
+  cacheDom();
   loadState();
   initCanvas();
   renderSidebar(queryState.schema);
   renderQueryOutput();
   renderRightPanel();
+  updateSchemaTabs();
   bindAppEvents();
 }
 
-// Connects all UI events.
+function cacheDom() {
+  dom.schemaTabs = document.querySelectorAll(".schema-tab");
+  dom.tableSearchInput = document.getElementById("table-search-input");
+  dom.schemaTableList = document.getElementById("schema-table-list");
+  dom.outputTabs = document.querySelectorAll(".output-tab");
+  dom.copyOutputBtn = document.getElementById("copy-output-btn");
+  dom.resetCanvasBtn = document.getElementById("reset-canvas-btn");
+  dom.exportQueryBtn = document.getElementById("export-query-btn");
+  dom.importQueryInput = document.getElementById("import-query-input");
+  dom.queryCanvas = document.getElementById("query-canvas");
+  dom.contextMenu = document.getElementById("canvas-context-menu");
+  dom.contextEditTableBtn = document.getElementById("context-edit-table-btn");
+  dom.contextRemoveTableBtn = document.getElementById("context-remove-table-btn");
+  dom.contextRemoveJoinBtn = document.getElementById("context-remove-join-btn");
+  dom.customTableBtn = document.getElementById("custom-table-btn");
+  dom.customTableModal = document.getElementById("custom-table-modal");
+  dom.closeCustomTableModalBtn = document.getElementById("close-custom-table-modal-btn");
+  dom.cancelCustomTableBtn = document.getElementById("cancel-custom-table-btn");
+  dom.customTableNameInput = document.getElementById("custom-table-name-input");
+  dom.customColumnList = document.getElementById("custom-column-list");
+  dom.addCustomColumnBtn = document.getElementById("add-custom-column-btn");
+  dom.createCustomTableBtn = document.getElementById("create-custom-table-btn");
+  dom.rightPanelContent = document.getElementById("right-panel-content");
+  dom.sqlOutput = document.getElementById("sql-output");
+  dom.jsonOutput = document.getElementById("json-output");
+  dom.validationWarningList = document.getElementById("validation-warning-list");
+  dom.tableCountStat = document.getElementById("table-count-stat");
+  dom.joinCountStat = document.getElementById("join-count-stat");
+  dom.columnCountStat = document.getElementById("column-count-stat");
+}
+
 function bindAppEvents() {
-  $(document).on("click", ".schema-table-item", function () {
-    const tableName = $(this).data("table");
-    addTableToCanvas(tableName, queryState.schema);
+  dom.schemaTableList.addEventListener("click", function (event) {
+    const tableItem = event.target.closest(".schema-table-item");
+
+    if (!tableItem) return;
+
+    addTableToCanvas(tableItem.dataset.table, queryState.schema);
   });
 
-  $(".schema-tab").on("click", function () {
-    handleSchemaSwitch($(this).data("schema"));
+  dom.schemaTabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      handleSchemaSwitch(tab.dataset.schema);
+    });
   });
 
-  $("#table-search-input").on("input", function () {
-    renderSidebar(queryState.schema, $(this).val());
+  dom.tableSearchInput.addEventListener("input", function () {
+    renderSidebar(queryState.schema, dom.tableSearchInput.value);
   });
 
-  $(".output-tab").on("click", function () {
-    activeOutputTab = $(this).data("output");
-    switchOutputTab();
+  dom.outputTabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      activeOutputTab = tab.dataset.output;
+      switchOutputTab();
+    });
   });
 
-  $("#copy-output-btn").on("click", handleCopyOutput);
-  $("#reset-canvas-btn").on("click", handleResetCanvas);
-  $("#export-query-btn").on("click", handleExportQuery);
-  $("#import-query-input").on("change", handleImportQuery);
+  dom.copyOutputBtn.addEventListener("click", handleCopyOutput);
+  dom.resetCanvasBtn.addEventListener("click", handleResetCanvas);
+  dom.exportQueryBtn.addEventListener("click", handleExportQuery);
+  dom.importQueryInput.addEventListener("change", handleImportQuery);
 
-  $("#query-canvas").on("mousedown", handleCanvasMouseDown);
-  $("#query-canvas").on("contextmenu", handleCanvasRightClick);
+  dom.queryCanvas.addEventListener("mousedown", handleCanvasMouseDown);
+  dom.queryCanvas.addEventListener("contextmenu", handleCanvasRightClick);
 
-  $(document).on("mousemove", handleCanvasMouseMove);
-  $(document).on("mouseup", handleCanvasMouseUp);
+  document.addEventListener("mousemove", handleCanvasMouseMove);
+  document.addEventListener("mouseup", handleCanvasMouseUp);
 
-  $(document).on("click", function () {
-    hideContextMenu();
+  document.addEventListener("click", function (event) {
+    if (!event.target.closest("#canvas-context-menu")) {
+      hideContextMenu();
+    }
   });
 
-  $("#context-remove-table-btn").on("click", function () {
+  dom.contextRemoveTableBtn.addEventListener("click", function () {
     if (queryState.selectedElement?.type === "table") {
       removeTable(queryState.selectedElement.id);
     }
@@ -53,7 +95,7 @@ function bindAppEvents() {
     hideContextMenu();
   });
 
-  $("#context-remove-join-btn").on("click", function () {
+  dom.contextRemoveJoinBtn.addEventListener("click", function () {
     if (queryState.selectedElement?.type === "join") {
       removeJoin(queryState.selectedElement.id);
     }
@@ -61,84 +103,61 @@ function bindAppEvents() {
     hideContextMenu();
   });
 
-  $(document).on("keydown", function (event) {
+  dom.contextEditTableBtn.addEventListener("click", hideContextMenu);
+
+  document.addEventListener("keydown", function (event) {
     if (event.key === "Escape") {
       cancelRelation();
       hideContextMenu();
+      closeCustomTableModal();
       renderCanvas();
     }
   });
 
-  $(document).on("input", "#alias-input", function () {
-    setTableAlias(queryState.selectedElement.id, $(this).val());
+  dom.rightPanelContent.addEventListener("input", handleRightPanelInput);
+  dom.rightPanelContent.addEventListener("change", handleRightPanelChange);
+  dom.rightPanelContent.addEventListener("click", handleRightPanelClick);
+
+  dom.customTableBtn.addEventListener("click", openCustomTableModal);
+  dom.closeCustomTableModalBtn.addEventListener("click", closeCustomTableModal);
+  dom.cancelCustomTableBtn.addEventListener("click", closeCustomTableModal);
+  dom.customTableModal.addEventListener("click", function (event) {
+    if (event.target === dom.customTableModal) {
+      closeCustomTableModal();
+    }
+  });
+  dom.addCustomColumnBtn.addEventListener("click", addCustomColumnRow);
+  dom.createCustomTableBtn.addEventListener("click", handleCreateCustomTable);
+  dom.customColumnList.addEventListener("click", function (event) {
+    if (event.target.classList.contains("remove-custom-column-btn")) {
+      removeCustomColumnRow(event.target);
+    }
   });
 
-  $(document).on("change", ".column-toggle-input", function () {
-    toggleColumn(queryState.selectedElement.id, $(this).data("column"));
-  });
-
-  $(document).on("click", "#add-condition-btn", handleAddCondition);
-
-  $(document).on("click", ".remove-condition-btn", function () {
-    removeCondition(queryState.selectedElement.id, Number($(this).data("index")));
-  });
-
-  $(document).on("change", "#join-type-select", function () {
-    setJoinType(queryState.selectedElement.id, $(this).val());
-  });
-
-  $(document).on("click", "#remove-join-btn", function () {
-    removeJoin(queryState.selectedElement.id);
-  });
-
-  $(document).on("change", "#group-by-select", function () {
-    updateState({ groupBy: $(this).val() || null });
-  });
-
-  $(document).on("change", "#order-by-select, #order-direction-select", updateOrderByFromInputs);
-
-  $(document).on("input", "#limit-input", function () {
-    updateState({ limit: Number($(this).val()) || null });
-  });
-
-  $("#add-custom-column-btn").on("click", addCustomColumnRow);
-
-  $(document).on("click", ".remove-custom-column-btn", function () {
-    removeCustomColumnRow(this);
-  });
-
-  $("#create-custom-table-btn").on("click", handleCreateCustomTable);
-
-  $("#custom-table-modal").on("hidden.bs.modal", resetCustomTableModal);
-
-  $(window).on("resize", function () {
+  window.addEventListener("resize", function () {
     resizeCanvasToDisplaySize();
     renderCanvas();
   });
 }
 
-// Renders the schema table list in the left sidebar.
 function renderSidebar(schemaName, searchTerm = "") {
   const schema = SCHEMAS[schemaName];
   const filteredTables = Object.keys(schema.tables).filter(function (tableName) {
     return tableName.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  $("#schema-table-list").html("");
-
-  filteredTables.forEach(function (tableName) {
+  dom.schemaTableList.innerHTML = filteredTables.map(function (tableName) {
     const columns = schema.tables[tableName];
 
-    $("#schema-table-list").append(`
-      <div class="schema-table-item" data-table="${tableName}">
-        <h4>${tableName}</h4>
+    return `
+      <button class="schema-table-item" type="button" data-table="${escapeAttribute(tableName)}">
+        <h4>${escapeHTML(tableName)}</h4>
         <span class="column-count">${columns.length} columns</span>
-      </div>
-    `);
-  });
+      </button>
+    `;
+  }).join("");
 }
 
-// Renders the right properties panel.
 function renderRightPanel() {
   if (!queryState.selectedElement) {
     renderGlobalQueryControls();
@@ -155,16 +174,14 @@ function renderRightPanel() {
   }
 }
 
-// Renders global query controls when nothing is selected.
 function renderGlobalQueryControls() {
-  $("#right-panel-content").html(`
+  dom.rightPanelContent.innerHTML = `
     <h3>Query Controls</h3>
     ${getGlobalControlsHTML()}
-    <p class="hint-text mt-3">Tip: Shift + click one column, then Shift + click another table column to create a JOIN.</p>
-  `);
+    <p class="hint-text">Tip: Shift + click one column, then Shift + click another table column to create a JOIN.</p>
+  `;
 }
 
-// Renders table controls in the right panel.
 function renderTableProperties() {
   const table = getTableById(queryState.selectedElement.id);
 
@@ -174,22 +191,22 @@ function renderTableProperties() {
     return `
       <label class="column-control">
         <input 
-          class="form-check-input column-toggle-input" 
+          class="column-toggle-input" 
           type="checkbox" 
-          data-column="${column.name}"
+          data-column="${escapeAttribute(column.name)}"
           ${column.selected ? "checked" : ""}
         >
-        <span>${column.name}</span>
-        <small>${column.type}</small>
+        <span>${escapeHTML(column.name)}</span>
+        <small>${escapeHTML(column.type)}</small>
       </label>
     `;
   }).join("");
 
-  $("#right-panel-content").html(`
-    <h3>${table.tableName}</h3>
+  dom.rightPanelContent.innerHTML = `
+    <h3>${escapeHTML(table.tableName)}</h3>
 
-    <label class="form-label">Alias</label>
-    <input id="alias-input" class="form-control panel-input" value="${table.alias}">
+    <label class="form-label" for="alias-input">Alias</label>
+    <input id="alias-input" class="panel-input" value="${escapeAttribute(table.alias)}">
 
     <div class="panel-section-title">SELECT Columns</div>
     <div class="column-control-list">${columnControls}</div>
@@ -198,13 +215,10 @@ function renderTableProperties() {
     ${getConditionBuilderHTML(table)}
     ${getConditionsListHTML(table)}
 
-    <button class="btn ghost-btn w-100 mt-3" onclick="removeTable('${table.id}')">
-      Remove Table
-    </button>
-  `);
+    <button id="remove-selected-table-btn" class="secondary-btn full-width" type="button">Remove Table</button>
+  `;
 }
 
-// Renders join controls in the right panel.
 function renderJoinProperties() {
   const join = getJoinById(queryState.selectedElement.id);
 
@@ -213,39 +227,38 @@ function renderJoinProperties() {
   const fromTable = getTableById(join.fromTable);
   const toTable = getTableById(join.toTable);
 
-  $("#right-panel-content").html(`
+  if (!fromTable || !toTable) return;
+
+  dom.rightPanelContent.innerHTML = `
     <h3>JOIN Relationship</h3>
 
     <p class="join-summary">
-      ${fromTable.alias}.${join.fromColumn}
+      ${escapeHTML(fromTable.alias)}.${escapeHTML(join.fromColumn)}
       <br>=<br>
-      ${toTable.alias}.${join.toColumn}
+      ${escapeHTML(toTable.alias)}.${escapeHTML(join.toColumn)}
     </p>
 
-    <label class="form-label">JOIN Type</label>
-    <select id="join-type-select" class="form-select panel-input">
+    <label class="form-label" for="join-type-select">JOIN Type</label>
+    <select id="join-type-select" class="panel-input">
       <option value="INNER" ${join.type === "INNER" ? "selected" : ""}>INNER JOIN</option>
       <option value="LEFT" ${join.type === "LEFT" ? "selected" : ""}>LEFT JOIN</option>
       <option value="RIGHT" ${join.type === "RIGHT" ? "selected" : ""}>RIGHT JOIN</option>
       <option value="FULL" ${join.type === "FULL" ? "selected" : ""}>FULL JOIN</option>
     </select>
 
-    <button id="remove-join-btn" class="btn ghost-btn w-100 mt-3">
-      Remove JOIN
-    </button>
-  `);
+    <button id="remove-join-btn" class="secondary-btn full-width" type="button">Remove JOIN</button>
+  `;
 }
 
-// Builds the WHERE condition form.
 function getConditionBuilderHTML(table) {
   const columnOptions = table.columns.map(function (column) {
-    return `<option value="${column.name}">${column.name}</option>`;
+    return `<option value="${escapeAttribute(column.name)}">${escapeHTML(column.name)}</option>`;
   }).join("");
 
   return `
-    <select id="condition-column-select" class="form-select panel-input">${columnOptions}</select>
+    <select id="condition-column-select" class="panel-input">${columnOptions}</select>
 
-    <select id="condition-operator-select" class="form-select panel-input">
+    <select id="condition-operator-select" class="panel-input">
       <option value="=">=</option>
       <option value="!=">!=</option>
       <option value=">">&gt;</option>
@@ -256,68 +269,65 @@ function getConditionBuilderHTML(table) {
       <option value="IN">IN</option>
     </select>
 
-    <input id="condition-value-input" class="form-control panel-input" placeholder="Value e.g. active">
+    <input id="condition-value-input" class="panel-input" placeholder="Value e.g. active">
 
-    <select id="condition-connector-select" class="form-select panel-input">
+    <select id="condition-connector-select" class="panel-input">
       <option value="AND">AND</option>
       <option value="OR">OR</option>
     </select>
 
-    <button id="add-condition-btn" class="btn neon-btn w-100">Add Condition</button>
+    <button id="add-condition-btn" class="primary-btn full-width" type="button">Add Condition</button>
   `;
 }
 
-// Builds the existing conditions list.
 function getConditionsListHTML(table) {
   if (table.conditions.length === 0) {
-    return `<p class="hint-text mt-3">No conditions added yet.</p>`;
+    return `<p class="hint-text">No conditions added yet.</p>`;
   }
 
   return table.conditions.map(function (condition, index) {
     return `
       <div class="condition-pill">
-        <span>${condition.connector} ${table.alias}.${condition.column} ${condition.operator} ${condition.value}</span>
-        <button class="remove-condition-btn" data-index="${index}">×</button>
+        <span>${escapeHTML(condition.connector)} ${escapeHTML(table.alias)}.${escapeHTML(condition.column)} ${escapeHTML(condition.operator)} ${escapeHTML(condition.value)}</span>
+        <button class="remove-condition-btn" type="button" data-index="${index}">x</button>
       </div>
     `;
   }).join("");
 }
 
-// Builds global ORDER/GROUP/LIMIT controls.
 function getGlobalControlsHTML() {
   const columnOptions = getAllQualifiedColumns().map(function (columnName) {
-    return `<option value="${columnName}" ${queryState.groupBy === columnName ? "selected" : ""}>${columnName}</option>`;
+    return `<option value="${escapeAttribute(columnName)}" ${queryState.groupBy === columnName ? "selected" : ""}>${escapeHTML(columnName)}</option>`;
   }).join("");
 
   const orderColumnOptions = getAllQualifiedColumns().map(function (columnName) {
     const isSelected = queryState.orderBy && queryState.orderBy.column === columnName;
-    return `<option value="${columnName}" ${isSelected ? "selected" : ""}>${columnName}</option>`;
+    return `<option value="${escapeAttribute(columnName)}" ${isSelected ? "selected" : ""}>${escapeHTML(columnName)}</option>`;
   }).join("");
 
   return `
     <div class="panel-section-title">GROUP BY</div>
-    <select id="group-by-select" class="form-select panel-input">
+    <select id="group-by-select" class="panel-input">
       <option value="">None</option>
       ${columnOptions}
     </select>
 
     <div class="panel-section-title">ORDER BY</div>
-    <select id="order-by-select" class="form-select panel-input">
+    <select id="order-by-select" class="panel-input">
       <option value="">None</option>
       ${orderColumnOptions}
     </select>
 
-    <select id="order-direction-select" class="form-select panel-input">
+    <select id="order-direction-select" class="panel-input">
       <option value="ASC" ${queryState.orderBy && queryState.orderBy.direction === "ASC" ? "selected" : ""}>ASC</option>
       <option value="DESC" ${queryState.orderBy && queryState.orderBy.direction === "DESC" ? "selected" : ""}>DESC</option>
     </select>
 
     <div class="panel-section-title">LIMIT</div>
-    <input id="limit-input" type="number" class="form-control panel-input" value="${queryState.limit || ""}" min="1">
+    <input id="limit-input" type="number" class="panel-input" value="${queryState.limit || ""}" min="1">
   `;
 }
 
-// Gets every column with alias prefix.
 function getAllQualifiedColumns() {
   const columns = [];
 
@@ -330,12 +340,11 @@ function getAllQualifiedColumns() {
   return columns;
 }
 
-// Adds one new row inside the custom table modal.
 function addCustomColumnRow() {
-  $("#custom-column-list").append(`
+  dom.customColumnList.insertAdjacentHTML("beforeend", `
     <div class="custom-column-row">
-      <input class="form-control panel-input custom-column-name" placeholder="Column name e.g. created_at">
-      <select class="form-select panel-input custom-column-type">
+      <input class="panel-input custom-column-name" placeholder="Column name e.g. created_at">
+      <select class="panel-input custom-column-type">
         <option value="INT">INT</option>
         <option value="VARCHAR">VARCHAR</option>
         <option value="TEXT">TEXT</option>
@@ -343,24 +352,24 @@ function addCustomColumnRow() {
         <option value="DATETIME">DATETIME</option>
         <option value="BOOLEAN">BOOLEAN</option>
       </select>
-      <button class="remove-custom-column-btn" type="button">×</button>
+      <button class="remove-custom-column-btn" type="button">x</button>
     </div>
   `);
 }
 
-// Removes one custom column row from the modal.
 function removeCustomColumnRow(buttonElement) {
-  if ($(".custom-column-row").length <= 1) {
+  const rows = dom.customColumnList.querySelectorAll(".custom-column-row");
+
+  if (rows.length <= 1) {
     alert("A custom table needs at least one column.");
     return;
   }
 
-  $(buttonElement).closest(".custom-column-row").remove();
+  buttonElement.closest(".custom-column-row").remove();
 }
 
-// Creates a custom table from modal inputs.
 function handleCreateCustomTable() {
-  const tableName = $("#custom-table-name-input").val().trim();
+  const tableName = dom.customTableNameInput.value.trim();
   const columns = [];
 
   if (!tableName) {
@@ -368,9 +377,9 @@ function handleCreateCustomTable() {
     return;
   }
 
-  $(".custom-column-row").each(function () {
-    const columnName = $(this).find(".custom-column-name").val().trim();
-    const columnType = $(this).find(".custom-column-type").val();
+  dom.customColumnList.querySelectorAll(".custom-column-row").forEach(function (row) {
+    const columnName = row.querySelector(".custom-column-name").value.trim();
+    const columnType = row.querySelector(".custom-column-type").value;
 
     if (columnName) {
       columns.push({ name: columnName, type: columnType });
@@ -383,19 +392,30 @@ function handleCreateCustomTable() {
   }
 
   addCustomTableToCanvas(tableName, columns);
-
-  const modalElement = document.getElementById("custom-table-modal");
-  bootstrap.Modal.getInstance(modalElement).hide();
+  closeCustomTableModal();
 }
 
-// Resets the custom table modal after closing.
-function resetCustomTableModal() {
-  $("#custom-table-name-input").val("");
+function openCustomTableModal() {
+  dom.customTableModal.classList.add("show");
+  dom.customTableModal.setAttribute("aria-hidden", "false");
+  dom.customTableNameInput.focus();
+}
 
-  $("#custom-column-list").html(`
+function closeCustomTableModal() {
+  if (!dom.customTableModal.classList.contains("show")) return;
+
+  dom.customTableModal.classList.remove("show");
+  dom.customTableModal.setAttribute("aria-hidden", "true");
+  resetCustomTableModal();
+}
+
+function resetCustomTableModal() {
+  dom.customTableNameInput.value = "";
+
+  dom.customColumnList.innerHTML = `
     <div class="custom-column-row">
-      <input class="form-control panel-input custom-column-name" placeholder="Column name e.g. id">
-      <select class="form-select panel-input custom-column-type">
+      <input class="panel-input custom-column-name" placeholder="Column name e.g. id">
+      <select class="panel-input custom-column-type">
         <option value="INT">INT</option>
         <option value="VARCHAR">VARCHAR</option>
         <option value="TEXT">TEXT</option>
@@ -403,14 +423,60 @@ function resetCustomTableModal() {
         <option value="DATETIME">DATETIME</option>
         <option value="BOOLEAN">BOOLEAN</option>
       </select>
-      <button class="remove-custom-column-btn" type="button">×</button>
+      <button class="remove-custom-column-btn" type="button">x</button>
     </div>
-  `);
+  `;
 }
 
-// Handles adding a condition from panel inputs.
+function handleRightPanelInput(event) {
+  if (event.target.id === "alias-input") {
+    setTableAlias(queryState.selectedElement.id, event.target.value);
+  }
+
+  if (event.target.id === "limit-input") {
+    updateState({ limit: Number(event.target.value) || null });
+  }
+}
+
+function handleRightPanelChange(event) {
+  if (event.target.classList.contains("column-toggle-input")) {
+    toggleColumn(queryState.selectedElement.id, event.target.dataset.column);
+  }
+
+  if (event.target.id === "join-type-select") {
+    setJoinType(queryState.selectedElement.id, event.target.value);
+  }
+
+  if (event.target.id === "group-by-select") {
+    updateState({ groupBy: event.target.value || null });
+  }
+
+  if (event.target.id === "order-by-select" || event.target.id === "order-direction-select") {
+    updateOrderByFromInputs();
+  }
+}
+
+function handleRightPanelClick(event) {
+  if (event.target.id === "add-condition-btn") {
+    handleAddCondition();
+  }
+
+  if (event.target.classList.contains("remove-condition-btn")) {
+    removeCondition(queryState.selectedElement.id, Number(event.target.dataset.index));
+  }
+
+  if (event.target.id === "remove-selected-table-btn") {
+    removeTable(queryState.selectedElement.id);
+  }
+
+  if (event.target.id === "remove-join-btn") {
+    removeJoin(queryState.selectedElement.id);
+  }
+}
+
 function handleAddCondition() {
-  const value = $("#condition-value-input").val().trim();
+  const valueInput = document.getElementById("condition-value-input");
+  const value = valueInput.value.trim();
 
   if (!value) {
     alert("Please enter a condition value.");
@@ -418,47 +484,54 @@ function handleAddCondition() {
   }
 
   addCondition(queryState.selectedElement.id, {
-    column: $("#condition-column-select").val(),
-    operator: $("#condition-operator-select").val(),
+    column: document.getElementById("condition-column-select").value,
+    operator: document.getElementById("condition-operator-select").value,
     value: value,
-    connector: $("#condition-connector-select").val()
+    connector: document.getElementById("condition-connector-select").value
   });
 }
 
-// Updates ORDER BY from right panel inputs.
 function updateOrderByFromInputs() {
-  const column = $("#order-by-select").val();
-  const direction = $("#order-direction-select").val();
+  const column = document.getElementById("order-by-select").value;
+  const direction = document.getElementById("order-direction-select").value;
 
   updateState({
     orderBy: column ? { column: column, direction: direction } : null
   });
 }
 
-// Updates SQL, JSON, and validation output.
 function renderQueryOutput() {
   const rawSql = generateSQL(queryState);
 
-  $("#sql-output").html(formatSQL(rawSql));
-  $("#json-output").text(generateJSON(queryState));
+  dom.sqlOutput.innerHTML = formatSQL(rawSql);
+  dom.jsonOutput.textContent = generateJSON(queryState);
   renderValidationWarnings(validateQuery(queryState));
+  renderStats();
 }
 
-// Shows beginner-friendly query warnings.
 function renderValidationWarnings(warnings) {
   if (warnings.length === 0) {
-    $("#validation-warning-list").html("");
+    dom.validationWarningList.innerHTML = "";
     return;
   }
 
-  $("#validation-warning-list").html(
-    warnings.map(function (warning) {
-      return `<span class="warning-badge">${warning}</span>`;
-    }).join("")
-  );
+  dom.validationWarningList.innerHTML = warnings.map(function (warning) {
+    return `<span class="warning-badge">${escapeHTML(warning)}</span>`;
+  }).join("");
 }
 
-// Handles clicking inside the canvas.
+function renderStats() {
+  const selectedColumnCount = queryState.tables.reduce(function (count, table) {
+    return count + table.columns.filter(function (column) {
+      return column.selected;
+    }).length;
+  }, 0);
+
+  dom.tableCountStat.textContent = queryState.tables.length;
+  dom.joinCountStat.textContent = queryState.joins.length;
+  dom.columnCountStat.textContent = selectedColumnCount;
+}
+
 function handleCanvasMouseDown(event) {
   const mouse = getCanvasMousePosition(event);
   const clickedColumn = hitTestColumn(mouse.x, mouse.y);
@@ -495,7 +568,6 @@ function handleCanvasMouseDown(event) {
   updateState({ selectedElement: null });
 }
 
-// Handles table movement and JOIN preview while moving the mouse.
 function handleCanvasMouseMove(event) {
   const mouse = getCanvasMousePosition(event);
 
@@ -509,12 +581,10 @@ function handleCanvasMouseMove(event) {
   }
 }
 
-// Stops table dragging.
 function handleCanvasMouseUp() {
   endDrag();
 }
 
-// Shows a custom right-click menu for tables and joins.
 function handleCanvasRightClick(event) {
   event.preventDefault();
 
@@ -537,68 +607,61 @@ function handleCanvasRightClick(event) {
   hideContextMenu();
 }
 
-// Opens the context menu at the mouse position.
 function showContextMenu(x, y, type) {
-  $("#context-edit-table-btn").toggle(type === "table");
-  $("#context-remove-table-btn").toggle(type === "table");
-  $("#context-remove-join-btn").toggle(type === "join");
-
-  $("#canvas-context-menu")
-    .css({
-      left: x + "px",
-      top: y + "px"
-    })
-    .addClass("show");
+  dom.contextEditTableBtn.hidden = type !== "table";
+  dom.contextRemoveTableBtn.hidden = type !== "table";
+  dom.contextRemoveJoinBtn.hidden = type !== "join";
+  dom.contextMenu.style.left = x + "px";
+  dom.contextMenu.style.top = y + "px";
+  dom.contextMenu.classList.add("show");
 }
 
-// Hides the context menu.
 function hideContextMenu() {
-  $("#canvas-context-menu").removeClass("show");
+  dom.contextMenu.classList.remove("show");
 }
 
-// Switches between SQL and JSON output tabs.
 function switchOutputTab() {
-  $(".output-tab").removeClass("active");
-  $(`.output-tab[data-output="${activeOutputTab}"]`).addClass("active");
+  dom.outputTabs.forEach(function (tab) {
+    tab.classList.toggle("active", tab.dataset.output === activeOutputTab);
+  });
 
-  $(".query-output").removeClass("active");
-
-  if (activeOutputTab === "sql") {
-    $("#sql-output").addClass("active");
-  } else {
-    $("#json-output").addClass("active");
-  }
+  dom.sqlOutput.classList.toggle("active", activeOutputTab === "sql");
+  dom.jsonOutput.classList.toggle("active", activeOutputTab === "json");
 }
 
-// Changes the active schema and clears the canvas.
 function handleSchemaSwitch(schemaName) {
-  $(".schema-tab").removeClass("active");
-  $(`.schema-tab[data-schema="${schemaName}"]`).addClass("active");
-
   updateState({
     ...createDefaultQueryState(),
     schema: schemaName
   });
 
+  updateSchemaTabs();
   renderSidebar(schemaName);
 }
 
-// Copies the active output panel.
-function handleCopyOutput() {
+function updateSchemaTabs() {
+  dom.schemaTabs.forEach(function (tab) {
+    tab.classList.toggle("active", tab.dataset.schema === queryState.schema);
+  });
+}
+
+async function handleCopyOutput() {
   const textToCopy = activeOutputTab === "sql"
     ? generateSQL(queryState)
-    : $("#json-output").text();
+    : dom.jsonOutput.textContent;
 
-  navigator.clipboard.writeText(textToCopy);
-
-  $("#copy-output-btn").text("Copied!");
+  try {
+    await navigator.clipboard.writeText(textToCopy);
+    dom.copyOutputBtn.textContent = "Copied";
+  } catch (error) {
+    dom.copyOutputBtn.textContent = "Copy failed";
+  }
 
   setTimeout(function () {
-    $("#copy-output-btn").text("Copy");
+    dom.copyOutputBtn.textContent = "Copy";
   }, 900);
 }
 
-// Exports the full queryState as a downloadable JSON file.
 function handleExportQuery() {
   const jsonText = JSON.stringify(queryState, null, 2);
   const blob = new Blob([jsonText], { type: "application/json" });
@@ -612,7 +675,6 @@ function handleExportQuery() {
   URL.revokeObjectURL(downloadUrl);
 }
 
-// Imports queryState from a JSON file.
 function handleImportQuery(event) {
   const file = event.target.files[0];
 
@@ -637,19 +699,16 @@ function handleImportQuery(event) {
       renderSidebar(queryState.schema);
       renderRightPanel();
       renderQueryOutput();
-
-      $(".schema-tab").removeClass("active");
-      $(`.schema-tab[data-schema="${queryState.schema}"]`).addClass("active");
+      updateSchemaTabs();
     } catch (error) {
       alert("Could not read this JSON file.");
     }
   };
 
   reader.readAsText(file);
-  $("#import-query-input").val("");
+  dom.importQueryInput.value = "";
 }
 
-// Checks whether imported JSON looks like a valid queryState object.
 function isValidImportedState(importedState) {
   return (
     importedState &&
@@ -661,12 +720,23 @@ function isValidImportedState(importedState) {
   );
 }
 
-// Resets the whole canvas.
 function handleResetCanvas() {
   if (!confirm("Reset the canvas and clear the current query?")) return;
 
   updateState(createDefaultQueryState());
+  updateSchemaTabs();
   renderSidebar(queryState.schema);
 }
 
-$(document).ready(init);
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeAttribute(value) {
+  return escapeHTML(value).replaceAll('"', "&quot;");
+}
+
+document.addEventListener("DOMContentLoaded", init);

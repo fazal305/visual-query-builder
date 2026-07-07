@@ -38,7 +38,7 @@ function createTableNode(tableName, columns) {
   return {
     id: generateNodeId(),
     tableName: tableName,
-    alias: tableName.charAt(0).toLowerCase(),
+    alias: createUniqueAlias(tableName),
     position: {
       x: 80 + queryState.tables.length * 40,
       y: 80 + queryState.tables.length * 40
@@ -52,6 +52,33 @@ function createTableNode(tableName, columns) {
     }),
     conditions: []
   };
+}
+
+// Creates a short alias that avoids duplicates where possible.
+function createUniqueAlias(tableName) {
+  const baseAlias = tableName
+    .split("_")
+    .map(function (part) {
+      return part.charAt(0);
+    })
+    .join("")
+    .toLowerCase() || "t";
+
+  const usedAliases = new Set(queryState.tables.map(function (table) {
+    return table.alias.toLowerCase();
+  }));
+
+  if (!usedAliases.has(baseAlias)) {
+    return baseAlias;
+  }
+
+  let counter = 2;
+
+  while (usedAliases.has(baseAlias + counter)) {
+    counter += 1;
+  }
+
+  return baseAlias + counter;
 }
 
 // Removes a table from the canvas.

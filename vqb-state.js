@@ -187,5 +187,16 @@ function loadState() {
     return;
   }
 
-  queryState = JSON.parse(savedState);
+  try {
+    const parsedState = JSON.parse(savedState);
+
+    if (parsedState && typeof parsedState === "object") {
+      queryState = {
+        ...createDefaultQueryState(),
+        ...parsedState
+      };
+    }
+  } catch (error) {
+    localStorage.removeItem("visualQueryBuilderState");
+  }
 }
