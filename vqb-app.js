@@ -146,6 +146,11 @@ function renderSidebar(schemaName, searchTerm = "") {
     return tableName.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  if (filteredTables.length === 0) {
+    dom.schemaTableList.innerHTML = `<p class="hint-text">No tables match your search.</p>`;
+    return;
+  }
+
   dom.schemaTableList.innerHTML = filteredTables.map(function (tableName) {
     const columns = schema.tables[tableName];
 
@@ -277,6 +282,7 @@ function getConditionBuilderHTML(table) {
     </select>
 
     <button id="add-condition-btn" class="primary-btn full-width" type="button">Add Condition</button>
+    <p id="condition-value-error" class="field-error"></p>
   `;
 }
 
@@ -361,7 +367,7 @@ function removeCustomColumnRow(buttonElement) {
   const rows = dom.customColumnList.querySelectorAll(".custom-column-row");
 
   if (rows.length <= 1) {
-    alert("A custom table needs at least one column.");
+    setFieldError("custom-column-error", "A custom table needs at least one column.");
     return;
   }
 
@@ -372,8 +378,11 @@ function handleCreateCustomTable() {
   const tableName = dom.customTableNameInput.value.trim();
   const columns = [];
 
+  setFieldError("custom-table-name-error", "");
+  setFieldError("custom-column-error", "");
+
   if (!tableName) {
-    alert("Please enter a table name.");
+    setFieldError("custom-table-name-error", "Please enter a table name.");
     return;
   }
 
@@ -387,12 +396,20 @@ function handleCreateCustomTable() {
   });
 
   if (columns.length === 0) {
-    alert("Please add at least one column name.");
+    setFieldError("custom-column-error", "Please add at least one column name.");
     return;
   }
 
   addCustomTableToCanvas(tableName, columns);
   closeCustomTableModal();
+}
+
+function setFieldError(elementId, message) {
+  const element = document.getElementById(elementId);
+
+  if (element) {
+    element.textContent = message;
+  }
 }
 
 function openCustomTableModal() {
@@ -411,6 +428,8 @@ function closeCustomTableModal() {
 
 function resetCustomTableModal() {
   dom.customTableNameInput.value = "";
+  setFieldError("custom-table-name-error", "");
+  setFieldError("custom-column-error", "");
 
   dom.customColumnList.innerHTML = `
     <div class="custom-column-row">
@@ -479,9 +498,11 @@ function handleAddCondition() {
   const value = valueInput.value.trim();
 
   if (!value) {
-    alert("Please enter a condition value.");
+    setFieldError("condition-value-error", "Please enter a condition value.");
     return;
   }
+
+  setFieldError("condition-value-error", "");
 
   addCondition(queryState.selectedElement.id, {
     column: document.getElementById("condition-column-select").value,
